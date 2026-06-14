@@ -2,6 +2,7 @@ import yt_dlp
 import streamlit as st
 import os
 import tempfile
+import shutil
 
 def search_youtube(song_name: str):
     search_opts = {
@@ -15,6 +16,10 @@ def search_youtube(song_name: str):
         return info['entries']
 
 def download_youtube(url: str, format_choice: str, cookie_path: str = None):
+    # Kiểm tra xem máy chủ đã nhận diện được công cụ ghép video FFmpeg chưa
+    if not shutil.which('ffmpeg'):
+        raise Exception("LỖI MÁY CHỦ: Chưa cài đặt FFmpeg. Vui lòng vào Manage App -> Reboot app trên Streamlit Cloud để máy chủ cài đặt lại.")
+        
     temp_dir = tempfile.mkdtemp()
     ydl_opts = {
         'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
@@ -35,9 +40,9 @@ def download_youtube(url: str, format_choice: str, cookie_path: str = None):
             'preferredquality': '192',
         }]
     else:
-        # Giải pháp ổn định 100%: Tải file video nguyên bản tốt nhất đã có sẵn cả hình và tiếng.
-        # Vừa khắc phục lỗi kích thước của YouTube Shorts, vừa chống tràn RAM trên Streamlit.
-        ydl_opts['format'] = 'best'
+        # Tải riêng luồng hình và tiếng tốt nhất, sau đó dùng FFmpeg ghép lại
+        # Đây là cách duy nhất để tải được YouTube Shorts (vì Shorts không có sẵn file nguyên bản)
+        ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
