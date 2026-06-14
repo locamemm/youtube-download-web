@@ -1,164 +1,105 @@
 import yt_dlp
-import streamlit as st
-import os
-import tempfile
-import shutil
 
-def search_youtube(song_name: str):
+def download_video_by_song_name(song_name: str, format_choice: str = 'mp4') -> None:
+    """
+    Tìm kiếm và tải xuống video/âm thanh YouTube dựa trên tên bài hát.
+    
+    Args:
+        song_name (str): Tên bài hát (hoặc từ khóa) cần tìm kiếm.
+        format_choice (str): Định dạng tải về ('mp4' hoặc 'mp3'). Mặc định là 'mp4'.
+    """
+    print(f"[*] Đang tìm kiếm 5 kết quả cho: '{song_name}'...")
+    
+    # Bước 1: Tìm kiếm 5 kết quả (không tải xuống)
     search_opts = {
         'extract_flat': True,
         'quiet': True,
     }
-    with yt_dlp.YoutubeDL(search_opts) as ydl:
-        info = ydl.extract_info(f"ytsearch5:{song_name}", download=False)
-        if not info or 'entries' not in info or not info['entries']:
-            return []
-        return info['entries']
 
-def download_youtube(url: str, format_choice: str, cookie_path: str = None):
-    # Kiểm tra xem máy chủ đã nhận diện được công cụ ghép video FFmpeg chưa
-    if not shutil.which('ffmpeg'):
-        raise Exception("LỖI MÁY CHỦ: Chưa cài đặt FFmpeg. Vui lòng vào Manage App -> Reboot app trên Streamlit Cloud để máy chủ cài đặt lại.")
-        
-    temp_dir = tempfile.mkdtemp()
-    ydl_opts = {
-        'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
-        'noplaylist': True,
-        'quiet': False,
-        # Khắc phục lỗi 403: Dùng client ios/tv vì android hiện bị YouTube chặn gắt gao hơn
-        'extractor_args': {'youtube': ['player_client=ios,tv,web']},
-    }
-
-    if cookie_path:
-        ydl_opts['cookiefile'] = cookie_path
-
-    if format_choice == 'mp3':
-        ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
-    else:
-        # Tải riêng luồng hình và tiếng tốt nhất, sau đó dùng FFmpeg ghép lại
-        # Đây là cách duy nhất để tải được YouTube Shorts (vì Shorts không có sẵn file nguyên bản)
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-        
-    downloaded_files = os.listdir(temp_dir)
-    if not downloaded_files:
-        raise Exception("Không thể lưu file. YouTube có thể đã chặn kết nối máy chủ hoặc lỗi định dạng.")
-        
-    downloaded_file = downloaded_files[0]
-    full_path = os.path.join(temp_dir, downloaded_file)
-    return full_path, downloaded_file
-
-# ===== GIAO DIỆN STREAMLIT =====
-st.set_page_config(page_title="YouTube Downloader", page_icon="🎬")
-
-st.title("🎬 Công Cụ Tải YouTube")
-st.markdown("Nhập tên bài hát hoặc từ khóa để tìm kiếm và tải xuống Video/Âm thanh.")
-
-# Khu vực tải lên Cookies ở thanh bên (Sidebar) để vượt lỗi 403
-st.sidebar.markdown("### 🍪 Vượt lỗi chặn IP (403)")
-st.sidebar.markdown("Máy chủ Streamlit thường bị YouTube chặn. Vui lòng cài tiện ích **Get cookies.txt LOCALLY** trên trình duyệt, tải file cookies của YouTube và upload vào đây:")
-uploaded_cookie = st.sidebar.file_uploader("Upload file cookies.txt", type=["txt"])
-
-# Khởi tạo session state để lưu kết quả tìm kiếm giữa các lần nhấn nút
-if 'search_results' not in st.session_state:
-    st.session_state.search_results = []
-if 'download_ready' not in st.session_state:
-    st.session_state.download_ready = False
-    st.session_state.file_path = ""
-    st.session_state.file_name = ""
-    st.session_state.mime_type = ""
-
-# Nhập từ khóa tìm kiếm
-song_name = st.text_input("Nhập tên bài hát bạn muốn tải:")
-
-if st.button("🔍 Tìm kiếm"):
-    st.session_state.download_ready = False  # Reset trạng thái tải xuống
-    if song_name.strip():
-        with st.spinner("Đang tìm kiếm 5 kết quả tốt nhất..."):
-            results = search_youtube(song_name.strip())
-            st.session_state.search_results = results
-            if not results:
-                st.warning("Không tìm thấy kết quả nào.")
-    else:
-        st.warning("Vui lòng nhập tên bài hát.")
-
-# Hiển thị kết quả (nếu đã tìm kiếm xong và có kết quả)
-if st.session_state.search_results:
-    st.write("### 📋 Kết quả tìm kiếm")
-    
-    options = []
-    for idx, entry in enumerate(st.session_state.search_results, start=1):
-        title = entry.get('title', 'Không có tiêu đề')
-        duration = entry.get('duration')
-        
-        if duration:
-            m, s = divmod(duration, 60)
-            h, m = divmod(m, 60)
-            duration_str = f"{int(h):02d}:{int(m):02d}:{int(s):02d}" if h else f"{int(m):02d}:{int(s):02d}"
-        else:
-            duration_str = "N/A"
+    try:
+        with yt_dlp.YoutubeDL(search_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch5:{song_name}", download=False)
             
-        options.append(f"{idx}. {title} (Thời lượng: {duration_str})")
+        if not info or 'entries' not in info or not info['entries']:
+            print("[-] Không tìm thấy kết quả nào.")
+            return
+            
+        entries = info['entries']
         
-    # Dropdown hoặc Radio cho phép người dùng chọn video
-    selected_option = st.radio("Chọn video để tải:", options)
-    selected_index = options.index(selected_option)
-    selected_entry = st.session_state.search_results[selected_index]
-    
-    # Chọn định dạng
-    format_choice = st.radio("Chọn định dạng tải xuống:", ["MP4 (Video)", "MP3 (Chỉ âm thanh)"])
-    format_val = 'mp3' if 'MP3' in format_choice else 'mp4'
-    
-    # Nút xử lý tải xuống (về server trước)
-    if st.button("⬇️ Chuẩn bị tải xuống"):
-        st.session_state.download_ready = False
+        print("\n=== KẾT QUẢ TÌM KIẾM ===")
+        for idx, entry in enumerate(entries, start=1):
+            title = entry.get('title', 'Không có tiêu đề')
+            duration = entry.get('duration')
+            
+            # Định dạng thời lượng (giây) sang dạng mm:ss hoặc hh:mm:ss
+            if duration:
+                m, s = divmod(duration, 60)
+                h, m = divmod(m, 60)
+                duration_str = f"{int(h):02d}:{int(m):02d}:{int(s):02d}" if h else f"{int(m):02d}:{int(s):02d}"
+            else:
+                duration_str = "N/A"
+                
+            print(f"{idx}. {title} (Thời lượng: {duration_str})")
+            
+        # Bước 2: Người dùng chọn video để tải
+        while True:
+            try:
+                choice = int(input("\nNhập số thứ tự video bạn muốn tải (1-5) hoặc 0 để hủy: "))
+                if choice == 0:
+                    print("Đã hủy tải xuống.")
+                    return
+                if 1 <= choice <= len(entries):
+                    selected_entry = entries[choice - 1]
+                    break
+                else:
+                    print("[-] Lựa chọn không hợp lệ, vui lòng nhập lại.")
+            except ValueError:
+                print("[-] Vui lòng nhập một số hợp lệ.")
+                
+        # Xây dựng link hoàn chỉnh dựa vào ID video
         video_id = selected_entry.get('id')
         selected_url = f"https://www.youtube.com/watch?v={video_id}"
+            
+        print(f"\n[*] Đang chuẩn bị tải: {selected_entry.get('title')}")
         
-        # Tạo file cookie tạm thời nếu người dùng đã tải lên
-        cookie_path = None
-        if uploaded_cookie is not None:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as tmp:
-                tmp.write(uploaded_cookie.getvalue())
-                cookie_path = tmp.name
+        # Bước 3: Cấu hình và tải xuống video đã chọn
+        ydl_opts = {
+            'outtmpl': '%(title)s.%(ext)s',
+            'noplaylist': True,
+            'quiet': False, 
+        }
 
-        with st.spinner(f"Đang xử lý tải video về máy chủ: {selected_entry.get('title')}..."):
-            try:
-                file_path, file_name = download_youtube(selected_url, format_val, cookie_path)
-                st.session_state.file_path = file_path
-                st.session_state.file_name = file_name
-                
-                # Cập nhật mime_type động theo đuôi file thực tế tải về
-                file_ext = os.path.splitext(file_name)[1].lower()
-                if file_ext == '.mp3':
-                    st.session_state.mime_type = "audio/mpeg"
-                elif file_ext == '.mp4':
-                    st.session_state.mime_type = "video/mp4"
-                elif file_ext == '.webm':
-                    st.session_state.mime_type = "video/webm"
-                else:
-                    st.session_state.mime_type = "application/octet-stream"
-                    
-                st.session_state.download_ready = True
-            except yt_dlp.utils.DownloadError as e:
-                st.error(f"Lỗi tải xuống từ yt-dlp: {e}")
-            except Exception as e:
-                st.error(f"Đã xảy ra lỗi hệ thống không mong muốn: {e}")
+        if format_choice == 'mp3':
+            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+        else:
+            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
-    # Nút để người dùng tải file trực tiếp về thiết bị của họ
-    if st.session_state.download_ready:
-        st.success("✅ File đã sẵn sàng! Bấm nút bên dưới để tải về thiết bị của bạn.")
-        with open(st.session_state.file_path, "rb") as f:
-            st.download_button(
-                label="💾 Lưu file về máy tính",
-                data=f,
-                file_name=st.session_state.file_name,
-                mime=st.session_state.mime_type
-            )
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([selected_url])
+            
+        print("\n[+] Tải xuống hoàn tất thành công!")
+        
+    except yt_dlp.utils.DownloadError as e:
+        print(f"\n[-] Lỗi tải xuống từ yt-dlp: {e}")
+    except Exception as e:
+        print(f"\n[-] Đã xảy ra lỗi hệ thống không mong muốn: {e}")
+
+if __name__ == "__main__":
+    print("=== CÔNG CỤ TẢI YOUTUBE BẰNG TÊN BÀI HÁT ===")
+    user_input = input("Nhập tên bài hát bạn muốn tải: ")
+    
+    if user_input.strip():
+        print("\nChọn định dạng tải xuống:")
+        print("1. MP4 (Video)")
+        print("2. MP3 (Chỉ âm thanh)")
+        choice = input("Nhập lựa chọn của bạn (1 hoặc 2): ")
+        
+        format_choice = 'mp3' if choice.strip() == '2' else 'mp4'
+        download_video_by_song_name(user_input.strip(), format_choice)
+    else:
+        print("[-] Tên bài hát không được để trống.")
