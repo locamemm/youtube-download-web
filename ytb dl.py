@@ -14,7 +14,7 @@ def search_youtube(song_name: str):
             return []
         return info['entries']
 
-def download_youtube(url: str, format_choice: str):
+def download_youtube(url: str, format_choice: str, cookie_path: str = None):
     temp_dir = tempfile.mkdtemp()
     ydl_opts = {
         'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
@@ -23,6 +23,9 @@ def download_youtube(url: str, format_choice: str):
         # Khắc phục lỗi 403: Dùng client ios/tv vì android hiện bị YouTube chặn gắt gao hơn
         'extractor_args': {'youtube': ['player_client=ios,tv,web']},
     }
+
+    if cookie_path:
+        ydl_opts['cookiefile'] = cookie_path
 
     if format_choice == 'mp3':
         ydl_opts['format'] = 'bestaudio/best'
@@ -46,6 +49,11 @@ st.set_page_config(page_title="YouTube Downloader", page_icon="🎬")
 
 st.title("🎬 Công Cụ Tải YouTube")
 st.markdown("Nhập tên bài hát hoặc từ khóa để tìm kiếm và tải xuống Video/Âm thanh.")
+
+# Khu vực tải lên Cookies ở thanh bên (Sidebar) để vượt lỗi 403
+st.sidebar.markdown("### 🍪 Vượt lỗi chặn IP (403)")
+st.sidebar.markdown("Máy chủ Streamlit thường bị YouTube chặn. Vui lòng cài tiện ích **Get cookies.txt LOCALLY** trên trình duyệt, tải file cookies của YouTube và upload vào đây:")
+uploaded_cookie = st.sidebar.file_uploader("Upload file cookies.txt", type=["txt"])
 
 # Khởi tạo session state để lưu kết quả tìm kiếm giữa các lần nhấn nút
 if 'search_results' not in st.session_state:
@@ -103,9 +111,16 @@ if st.session_state.search_results:
         video_id = selected_entry.get('id')
         selected_url = f"https://www.youtube.com/watch?v={video_id}"
         
+        # Tạo file cookie tạm thời nếu người dùng đã tải lên
+        cookie_path = None
+        if uploaded_cookie is not None:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as tmp:
+                tmp.write(uploaded_cookie.getvalue())
+                cookie_path = tmp.name
+
         with st.spinner(f"Đang xử lý tải video về máy chủ: {selected_entry.get('title')}..."):
             try:
-                file_path, file_name = download_youtube(selected_url, format_val)
+                file_path, file_name = download_youtube(selected_url, format_val, cookie_path)
                 st.session_state.file_path = file_path
                 st.session_state.file_name = file_name
                 st.session_state.mime_type = "audio/mpeg" if format_val == 'mp3' else "video/mp4"
