@@ -35,9 +35,8 @@ def download_youtube(url: str, format_choice: str, cookie_path: str = None):
             'preferredquality': '192',
         }]
     else:
-        # Ghép hình (tối đa 1080p để tránh tràn RAM server) và tiếng. Nếu không hỗ trợ thì lấy file tốt nhất.
-        ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best'
-        ydl_opts['merge_output_format'] = 'mp4'
+        # Ghép hình (tối đa 1080p để tránh tràn RAM) và tiếng. Cho phép yt-dlp tự chọn vùng chứa (MKV, WebM, MP4) thay vì ép buộc MP4.
+        ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
