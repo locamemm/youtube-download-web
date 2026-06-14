@@ -35,8 +35,8 @@ def download_youtube(url: str, format_choice: str, cookie_path: str = None):
             'preferredquality': '192',
         }]
     else:
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
-        ydl_opts['merge_output_format'] = 'mp4'
+        # Ưu tiên lấy MP4, nếu không có thì tự động dùng WebM/MKV tốt nhất thay vì báo lỗi
+        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
@@ -124,7 +124,18 @@ if st.session_state.search_results:
                 file_path, file_name = download_youtube(selected_url, format_val, cookie_path)
                 st.session_state.file_path = file_path
                 st.session_state.file_name = file_name
-                st.session_state.mime_type = "audio/mpeg" if format_val == 'mp3' else "video/mp4"
+                
+                # Cập nhật mime_type động theo đuôi file thực tế tải về
+                file_ext = os.path.splitext(file_name)[1].lower()
+                if file_ext == '.mp3':
+                    st.session_state.mime_type = "audio/mpeg"
+                elif file_ext == '.mp4':
+                    st.session_state.mime_type = "video/mp4"
+                elif file_ext == '.webm':
+                    st.session_state.mime_type = "video/webm"
+                else:
+                    st.session_state.mime_type = "application/octet-stream"
+                    
                 st.session_state.download_ready = True
             except yt_dlp.utils.DownloadError as e:
                 st.error(f"Lỗi tải xuống từ yt-dlp: {e}")
