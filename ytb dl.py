@@ -20,8 +20,8 @@ def download_youtube(url: str, format_choice: str):
         'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
         'noplaylist': True,
         'quiet': False,
-        # Khắc phục lỗi 403 bằng cách giả lập client Android
-        'extractor_args': {'youtube': ['player_client=android,web']},
+        # Khắc phục lỗi 403: Dùng client ios/tv vì android hiện bị YouTube chặn gắt gao hơn
+        'extractor_args': {'youtube': ['player_client=ios,tv,web']},
     }
 
     if format_choice == 'mp3':

@@ -1,2 +1,3 @@
-yt-dlp
+# Ép buộc Streamlit cài bản mới nhất để sửa các lỗi 403 từ YouTube
+yt-dlp>=2024.10.01
 streamlit
