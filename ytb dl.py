@@ -35,13 +35,17 @@ def download_youtube(url: str, format_choice: str, cookie_path: str = None):
             'preferredquality': '192',
         }]
     else:
-        # Ưu tiên lấy MP4, nếu không có thì tự động dùng WebM/MKV tốt nhất thay vì báo lỗi
-        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best'
+        # Lấy file video đã có sẵn cả hình và tiếng (thường là 720p MP4) để tránh quá tải RAM khi ghép file trên Cloud
+        ydl_opts['format'] = 'b[ext=mp4]/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
         
-    downloaded_file = os.listdir(temp_dir)[0]
+    downloaded_files = os.listdir(temp_dir)
+    if not downloaded_files:
+        raise Exception("Không thể lưu file. YouTube có thể đã chặn kết nối máy chủ hoặc lỗi định dạng.")
+        
+    downloaded_file = downloaded_files[0]
     full_path = os.path.join(temp_dir, downloaded_file)
     return full_path, downloaded_file
 
