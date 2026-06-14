@@ -35,8 +35,9 @@ def download_youtube(url: str, format_choice: str, cookie_path: str = None):
             'preferredquality': '192',
         }]
     else:
-        # Lấy file video đã có sẵn cả hình và tiếng (thường là 720p MP4) để tránh quá tải RAM khi ghép file trên Cloud
-        ydl_opts['format'] = 'b[ext=mp4]/best'
+        # Ghép hình (tối đa 1080p để tránh tràn RAM server) và tiếng. Nếu không hỗ trợ thì lấy file tốt nhất.
+        ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best'
+        ydl_opts['merge_output_format'] = 'mp4'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
