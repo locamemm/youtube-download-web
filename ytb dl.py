@@ -35,7 +35,8 @@ def download_youtube(url: str, format_choice: str, cookie_path: str = None):
             'preferredquality': '192',
         }]
     else:
-        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        ydl_opts['format'] = 'bestvideo+bestaudio/best'
+        ydl_opts['merge_output_format'] = 'mp4'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
