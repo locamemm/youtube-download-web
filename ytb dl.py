@@ -1,5 +1,7 @@
 import yt_dlp
 import streamlit as st
+import os
+import tempfile
 
 def search_youtube(song_name: str):
     search_opts = {
@@ -13,10 +15,13 @@ def search_youtube(song_name: str):
         return info['entries']
 
 def download_youtube(url: str, format_choice: str):
+    temp_dir = tempfile.mkdtemp()
     ydl_opts = {
-        'outtmpl': '%(title)s.%(ext)s',
+        'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
         'noplaylist': True,
-        'quiet': False, 
+        'quiet': False,
+        # Khắc phục lỗi 403 bằng cách giả lập client Android
+        'extractor_args': {'youtube': ['player_client=android,web']},
     }
 
     if format_choice == 'mp3':
@@ -31,6 +36,10 @@ def download_youtube(url: str, format_choice: str):
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
+        
+    downloaded_file = os.listdir(temp_dir)[0]
+    full_path = os.path.join(temp_dir, downloaded_file)
+    return full_path, downloaded_file
 
 # ===== GIAO DIỆN STREAMLIT =====
 st.set_page_config(page_title="YouTube Downloader", page_icon="🎬")
@@ -41,11 +50,17 @@ st.markdown("Nhập tên bài hát hoặc từ khóa để tìm kiếm và tải
 # Khởi tạo session state để lưu kết quả tìm kiếm giữa các lần nhấn nút
 if 'search_results' not in st.session_state:
     st.session_state.search_results = []
+if 'download_ready' not in st.session_state:
+    st.session_state.download_ready = False
+    st.session_state.file_path = ""
+    st.session_state.file_name = ""
+    st.session_state.mime_type = ""
 
 # Nhập từ khóa tìm kiếm
 song_name = st.text_input("Nhập tên bài hát bạn muốn tải:")
 
 if st.button("🔍 Tìm kiếm"):
+    st.session_state.download_ready = False  # Reset trạng thái tải xuống
     if song_name.strip():
         with st.spinner("Đang tìm kiếm 5 kết quả tốt nhất..."):
             results = search_youtube(song_name.strip())
@@ -82,16 +97,31 @@ if st.session_state.search_results:
     format_choice = st.radio("Chọn định dạng tải xuống:", ["MP4 (Video)", "MP3 (Chỉ âm thanh)"])
     format_val = 'mp3' if 'MP3' in format_choice else 'mp4'
     
-    # Nút tải xuống
-    if st.button("⬇️ Tải xuống"):
+    # Nút xử lý tải xuống (về server trước)
+    if st.button("⬇️ Chuẩn bị tải xuống"):
+        st.session_state.download_ready = False
         video_id = selected_entry.get('id')
         selected_url = f"https://www.youtube.com/watch?v={video_id}"
         
-        with st.spinner(f"Đang tiến hành tải: {selected_entry.get('title')}..."):
+        with st.spinner(f"Đang xử lý tải video về máy chủ: {selected_entry.get('title')}..."):
             try:
-                download_youtube(selected_url, format_val)
-                st.success(f"✅ Tải xuống hoàn tất! File đã được lưu trong cùng thư mục chạy ứng dụng.")
+                file_path, file_name = download_youtube(selected_url, format_val)
+                st.session_state.file_path = file_path
+                st.session_state.file_name = file_name
+                st.session_state.mime_type = "audio/mpeg" if format_val == 'mp3' else "video/mp4"
+                st.session_state.download_ready = True
             except yt_dlp.utils.DownloadError as e:
                 st.error(f"Lỗi tải xuống từ yt-dlp: {e}")
             except Exception as e:
                 st.error(f"Đã xảy ra lỗi hệ thống không mong muốn: {e}")
+
+    # Nút để người dùng tải file trực tiếp về thiết bị của họ
+    if st.session_state.download_ready:
+        st.success("✅ File đã sẵn sàng! Bấm nút bên dưới để tải về thiết bị của bạn.")
+        with open(st.session_state.file_path, "rb") as f:
+            st.download_button(
+                label="💾 Lưu file về máy tính",
+                data=f,
+                file_name=st.session_state.file_name,
+                mime=st.session_state.mime_type
+            )
